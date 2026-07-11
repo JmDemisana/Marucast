@@ -19,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.material3.*
@@ -40,15 +44,47 @@ import androidx.compose.ui.unit.sp
 import io.maru.marucast.media.MediaSessionState
 import io.maru.marucast.media.MarucastNotificationListener
 import io.maru.marucast.service.MarucastForegroundService
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.TextStyle
+import io.maru.marucast.R
 
-// Color palette
-val DeepBackground = Color(0xFF0A0E18)
-val DarkNavyAlt = Color(0xFF101420)
-val GlassBg = Color(0x1F2531)
-val AccentBlue = Color(0xFF7EB8F7)
+// Color palette matching the website default theme
+val DeepBackground = Color(0xFF050D18)
+val DarkNavyAlt = Color(0xFF0A1931)
+val AccentBlue = Color(0xFF5EB0FF)
 val AccentPurple = Color(0xFFA78BFA)
 val TextLight = Color(0xFFF5F8FF)
 val TextMuted = Color(0xFF8C95A5)
+
+// Space Grotesk Font Family
+val SpaceGrotesk = FontFamily(
+    Font(R.font.space_grotesk_regular, FontWeight.Normal),
+    Font(R.font.space_grotesk_medium, FontWeight.Medium),
+    Font(R.font.space_grotesk_bold, FontWeight.Bold),
+    Font(R.font.space_grotesk_bold, FontWeight.SemiBold),
+    Font(R.font.space_grotesk_bold, FontWeight.ExtraBold),
+    Font(R.font.space_grotesk_bold, FontWeight.Black)
+)
+
+// Custom Material 3 Typography matching the website
+val MaruTypography = Typography(
+    displayLarge = TextStyle(fontFamily = SpaceGrotesk),
+    displayMedium = TextStyle(fontFamily = SpaceGrotesk),
+    displaySmall = TextStyle(fontFamily = SpaceGrotesk),
+    headlineLarge = TextStyle(fontFamily = SpaceGrotesk),
+    headlineMedium = TextStyle(fontFamily = SpaceGrotesk),
+    headlineSmall = TextStyle(fontFamily = SpaceGrotesk),
+    titleLarge = TextStyle(fontFamily = SpaceGrotesk),
+    titleMedium = TextStyle(fontFamily = SpaceGrotesk),
+    titleSmall = TextStyle(fontFamily = SpaceGrotesk),
+    bodyLarge = TextStyle(fontFamily = SpaceGrotesk),
+    bodyMedium = TextStyle(fontFamily = SpaceGrotesk),
+    bodySmall = TextStyle(fontFamily = SpaceGrotesk),
+    labelLarge = TextStyle(fontFamily = SpaceGrotesk),
+    labelMedium = TextStyle(fontFamily = SpaceGrotesk),
+    labelSmall = TextStyle(fontFamily = SpaceGrotesk)
+)
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -70,96 +106,104 @@ fun MarucastAppContent(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(DeepBackground, DarkNavyAlt)
-                )
-            )
+    MaterialTheme(
+        typography = MaruTypography
     ) {
-        // Decorative background glowing spots
-        Box(
-            modifier = Modifier
-                .size(300.dp)
-                .align(Alignment.TopEnd)
-                .offset(x = 100.dp, y = (-100).dp)
-                .background(Brush.radialGradient(listOf(AccentBlue.copy(alpha = 0.15f), Color.Transparent)))
-        )
-        Box(
-            modifier = Modifier
-                .size(300.dp)
-                .align(Alignment.BottomStart)
-                .offset(x = (-100).dp, y = 100.dp)
-                .background(Brush.radialGradient(listOf(AccentPurple.copy(alpha = 0.15f), Color.Transparent)))
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        CompositionLocalProvider(
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = SpaceGrotesk)
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(DeepBackground, DarkNavyAlt)
+                        )
+                    )
             ) {
-                Text(
-                    text = "MARUCAST",
-                    color = AccentBlue,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp
-                )
-                
-                // Status badge
+                // Decorative background glowing spots
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (currentToken != null) Color(0x334CAF50) else Color(0x33FF9800))
-                        .border(
-                            1.dp,
-                            if (currentToken != null) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                            RoundedCornerShape(999.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (currentToken != null) "Casting" else "Not Paired",
-                        color = TextLight,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+                        .size(300.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = 100.dp, y = (-100).dp)
+                        .background(Brush.radialGradient(listOf(AccentBlue.copy(alpha = 0.15f), Color.Transparent)))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(300.dp)
+                        .align(Alignment.BottomStart)
+                        .offset(x = (-100).dp, y = 100.dp)
+                        .background(Brush.radialGradient(listOf(AccentPurple.copy(alpha = 0.15f), Color.Transparent)))
+                )
 
-            if (!hasNotificationAccess) {
-                // Prompt to enable Notification listener
-                PermissionPromptCard {
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-            } else {
-                AnimatedContent(targetState = currentToken) { token ->
-                    if (token == null) {
-                        PairingScreen(
-                            onPairCodeEntered = { pin, onResult ->
-                                onStartStream(pin, onResult)
-                            }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "MARUCAST",
+                            color = AccentBlue,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
                         )
+                        
+                        // Status badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(if (currentToken != null) Color(0x334CAF50) else Color(0x33FF9800))
+                                .border(
+                                    1.dp,
+                                    if (currentToken != null) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                    RoundedCornerShape(999.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (currentToken != null) "Casting" else "Not Paired",
+                                color = TextLight,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (!hasNotificationAccess) {
+                        // Prompt to enable Notification listener
+                        PermissionPromptCard {
+                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        }
                     } else {
-                        NowPlayingScreen(
-                            onDisconnect = {
-                                onStopStream()
-                                currentToken = null
+                        AnimatedContent(targetState = currentToken) { token ->
+                            if (token == null) {
+                                PairingScreen(
+                                    onPairCodeEntered = { pin, onResult ->
+                                        onStartStream(pin, onResult)
+                                    }
+                                )
+                            } else {
+                                NowPlayingScreen(
+                                    onDisconnect = {
+                                        onStopStream()
+                                        currentToken = null
+                                    }
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -281,16 +325,20 @@ fun PairingScreen(onPairCodeEntered: (String, onResult: (Boolean, String?) -> Un
             
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Pin view
+            // Pin view (Responsive and equal sizing for all 6 boxes)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 for (i in 0 until 6) {
                     val char = pinText.getOrNull(i)
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .weight(1f)
+                            .aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
                             .background(DarkNavyAlt)
                             .border(
@@ -693,7 +741,12 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                             .background(Color(0x0AFFFFFF))
                             .border(1.dp, Color(0x14FFFFFF), CircleShape)
                     ) {
-                        Text("⏮", color = TextLight, fontSize = 20.sp)
+                        Icon(
+                            imageVector = Icons.Rounded.SkipPrevious,
+                            contentDescription = "Previous",
+                            tint = TextLight,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
 
                     // Play/Pause button
@@ -716,12 +769,13 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                             )
                             .border(1.dp, Color(0x3DFFFFFF), CircleShape)
                     ) {
-                        Text(
-                            text = if (isPlaying) "⏸" else "▶",
-                            color = DeepBackground,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.offset(x = if (isPlaying) 0.dp else 2.dp)
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = DeepBackground,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .offset(x = if (isPlaying) 0.dp else 2.dp)
                         )
                     }
 
@@ -736,7 +790,12 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                             .background(Color(0x0AFFFFFF))
                             .border(1.dp, Color(0x14FFFFFF), CircleShape)
                     ) {
-                        Text("⏭", color = TextLight, fontSize = 20.sp)
+                        Icon(
+                            imageVector = Icons.Rounded.SkipNext,
+                            contentDescription = "Next",
+                            tint = TextLight,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
