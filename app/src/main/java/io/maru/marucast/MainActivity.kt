@@ -40,8 +40,8 @@ class MainActivity : ComponentActivity() {
                 color = DeepBackground
             ) {
                 MarucastAppContent(
-                    onStartStream = { pin ->
-                        lookupPinAndStartStream(pin)
+                    onStartStream = { pin, onResult ->
+                        lookupPinAndStartStream(pin, onResult)
                     },
                     onStopStream = {
                         stopStreamingService()
@@ -66,18 +66,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun lookupPinAndStartStream(pin: String) {
+    private fun lookupPinAndStartStream(pin: String, onResult: (Boolean, String?) -> Unit) {
         MarucastApiClient.lookupPin(pin, object : MarucastApiClient.Callback<String> {
             override fun onSuccess(token: String) {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "Paired successfully!", Toast.LENGTH_SHORT).show()
                     startStreamingService(token)
+                    onResult(true, null)
                 }
             }
 
             override fun onError(error: String) {
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, "Pairing failed: $error", Toast.LENGTH_LONG).show()
+                    onResult(false, error)
                 }
             }
         })

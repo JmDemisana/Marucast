@@ -50,7 +50,7 @@ val TextMuted = Color(0xFF8C95A5)
 @Composable
 fun MarucastAppContent(
     modifier: Modifier = Modifier,
-    onStartStream: (String) -> Unit,
+    onStartStream: (String, onResult: (Boolean, String?) -> Unit) -> Unit,
     onStopStream: () -> Unit
 ) {
     val context = LocalContext.current
@@ -145,8 +145,8 @@ fun MarucastAppContent(
                 AnimatedContent(targetState = currentToken) { token ->
                     if (token == null) {
                         PairingScreen(
-                            onPairCodeEntered = { pin ->
-                                onStartStream(pin)
+                            onPairCodeEntered = { pin, onResult ->
+                                onStartStream(pin, onResult)
                             }
                         )
                     } else {
@@ -205,7 +205,7 @@ fun PermissionPromptCard(onGrantClick: () -> Unit) {
 }
 
 @Composable
-fun PairingScreen(onPairCodeEntered: (String) -> Unit) {
+fun PairingScreen(onPairCodeEntered: (String, onResult: (Boolean, String?) -> Unit) -> Unit) {
     var pinText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -268,6 +268,24 @@ fun PairingScreen(onPairCodeEntered: (String) -> Unit) {
                 }
             }
 
+            if (pinText.isNotEmpty() || isLoading) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (isLoading) "Cancel" else "Clear All",
+                    color = if (isLoading) Color(0xFFE57373) else AccentBlue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            isLoading = false
+                            pinText = ""
+                            errorMessage = null
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
             errorMessage?.let { error ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(text = error, color = Color(0xFFE57373), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -318,7 +336,13 @@ fun PairingScreen(onPairCodeEntered: (String) -> Unit) {
                                         "OK" -> {
                                             if (pinText.length == 6) {
                                                 isLoading = true
-                                                onPairCodeEntered(pinText)
+                                                errorMessage = null
+                                                onPairCodeEntered(pinText) { success, error ->
+                                                    isLoading = false
+                                                    if (!success) {
+                                                        errorMessage = error ?: "Failed to pair"
+                                                    }
+                                                }
                                             } else {
                                                 errorMessage = "Enter exactly 6 digits."
                                             }
