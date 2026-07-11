@@ -106,7 +106,12 @@ class MarucastForegroundService : Service() {
         Log.i(TAG, "Starting stream relay on: $streamUrl")
         
         // 1. Start HTTP Server
-        relayServer = MarucastRelayServer(48543).apply { start() }
+        relayServer = MarucastRelayServer(48543).apply {
+            onControlCommand = { command ->
+                handleRemoteCommand(command)
+            }
+            start()
+        }
         
         // 2. Promote to Foreground (MUST happen before MediaProjection creation!)
         val notification = createNotification("Starting Marucast stream...")
@@ -274,6 +279,11 @@ class MarucastForegroundService : Service() {
 
     private fun handleRemoteCommand(command: String) {
         Log.i(TAG, "Received remote command: $command")
+        if (command == "disconnect" || command == "stop") {
+            stopStreamingService()
+            stopSelf()
+            return
+        }
         val controller = MediaSessionState.activeController ?: return
         try {
             when (command) {

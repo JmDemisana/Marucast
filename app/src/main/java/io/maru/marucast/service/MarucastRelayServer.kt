@@ -20,6 +20,8 @@ class MarucastRelayServer(private val port: Int = 48543) {
     private var isRunning = false
     private val executor = Executors.newCachedThreadPool()
     
+    var onControlCommand: ((String) -> Unit)? = null
+    
     // List of currently connected streaming clients
     private val streamingClients = CopyOnWriteArrayList<OutputStream>()
 
@@ -96,6 +98,9 @@ class MarucastRelayServer(private val port: Int = 48543) {
             } else if (path == "/status") {
                 handleStatusRequest(socket, output)
                 socket.close()
+            } else if (path == "/control") {
+                handleControlRequest(requestHeader, output)
+                socket.close()
             } else {
                 sendNotFound(output)
                 socket.close()
@@ -160,6 +165,39 @@ class MarucastRelayServer(private val port: Int = 48543) {
             out.flush()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send status: ${e.message}")
+        }
+    }
+
+    private fun handleControlRequest(requestHeader: String, out: OutputStream) {
+        val query = requestHeader.substringAfter("?").substringBefore(" ")
+        val command = query.split("&")
+            .firstOrNull { it.startsWith("command=") }
+            ?.substringAfter("command=")
+            ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            
+        if (command != null) {
+            onControlCommand?.invoke(command)
+            val json = "{\"success\":true}"
+            val responseBytes = json.toByteArray(Charsets.UTF_8)
+            val response = "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/json; charset=utf-8\r\n" +
+                    "Content-Length: ${responseBytes.size}\r\n" +
+                    "Connection: close\r\n" +
+                    "Access-Control-Allow-Origin: *\r\n\r\n"
+            out.write(response.toByteArray())
+            out.write(responseBytes)
+            out.flush()
+        } else {
+            val json = "{\"success\":false,\"message\":\"Command missing\"}"
+            val responseBytes = json.toByteArray(Charsets.UTF_8)
+            val response = "HTTP/1.1 400 Bad Request\r\n" +
+                    "Content-Type: application/json; charset=utf-8\r\n" +
+                    "Content-Length: ${responseBytes.size}\r\n" +
+                    "Connection: close\r\n" +
+                    "Access-Control-Allow-Origin: *\r\n\r\n"
+            out.write(response.toByteArray())
+            out.write(responseBytes)
+            out.flush()
         }
     }
 
