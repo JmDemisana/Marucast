@@ -456,6 +456,9 @@ fun AudioVisualizer(isPlaying: Boolean) {
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun NowPlayingScreen(onDisconnect: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("marucast_prefs", Context.MODE_PRIVATE) }
+    var delayMode by remember { mutableStateOf(prefs.getString("delay_mode", "lossless") ?: "lossless") }
     var metadataState by remember { mutableStateOf(MediaSessionState) }
     var title by remember { mutableStateOf(MediaSessionState.title) }
     var artist by remember { mutableStateOf(MediaSessionState.artist) }
@@ -791,6 +794,116 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                         uncheckedTrackColor = Color(0x1AFFFFFF)
                     )
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Delay Management Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkNavyAlt.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Color(0x14FFFFFF))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "⚡",
+                        fontSize = 22.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Delay Management",
+                            color = TextLight,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Optimize audio stream for speed or quality",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Options Rows
+                val delayOptions = listOf(
+                    "lossless" to "Lossless",
+                    "automatic" to "Automatic",
+                    "less_delay" to "Less Delay"
+                )
+                val descriptions = mapOf(
+                    "lossless" to "Delay does not matter. Best quality.",
+                    "automatic" to "Decrease quality dynamically if delay spikes.",
+                    "less_delay" to "Decrease quality to match source instantly."
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    delayOptions.forEach { (mode, label) ->
+                        val selected = delayMode == mode
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (selected) Color(0x147EB8F7) else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (selected) AccentBlue.copy(alpha = 0.4f) else Color.Transparent,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    delayMode = mode
+                                    MarucastForegroundService.delayManagementMode = mode
+                                    prefs.edit().putString("delay_mode", mode).apply()
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selected,
+                                onClick = {
+                                    delayMode = mode
+                                    MarucastForegroundService.delayManagementMode = mode
+                                    prefs.edit().putString("delay_mode", mode).apply()
+                                },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = AccentBlue,
+                                    unselectedColor = TextMuted
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = label,
+                                    color = if (selected) TextLight else TextMuted,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = descriptions[mode] ?: "",
+                                    color = TextMuted.copy(alpha = 0.8f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

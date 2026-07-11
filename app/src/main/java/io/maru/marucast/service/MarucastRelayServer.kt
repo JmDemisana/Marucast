@@ -148,7 +148,8 @@ class MarucastRelayServer(private val port: Int = 48543) {
             "serviceName" to "marucast-android",
             "sampleRate" to 44100,
             "vocalProcessingKind" to "none",
-            "vocalStemModelReady" to false
+            "vocalStemModelReady" to false,
+            "delayManagementMode" to MarucastForegroundService.delayManagementMode
         )
         val json = gson.toJson(statusMap)
         val responseBytes = json.toByteArray(Charsets.UTF_8)

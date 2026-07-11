@@ -67,11 +67,14 @@ class MarucastForegroundService : Service() {
 
         var isMicMode = false
         var isKaraokeMode = false
+        var delayManagementMode = "lossless" // "lossless", "automatic", "less_delay"
     }
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        val prefs = getSharedPreferences("marucast_prefs", Context.MODE_PRIVATE)
+        delayManagementMode = prefs.getString("delay_mode", "lossless") ?: "lossless"
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
