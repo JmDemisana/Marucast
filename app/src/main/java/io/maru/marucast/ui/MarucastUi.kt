@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -124,7 +125,7 @@ fun MarucastAppContent(
                             if (currentToken != null) Color(0xFF4CAF50) else Color(0xFFFF9800),
                             RoundedCornerShape(999.dp)
                         )
-                        .padding(horizontal = 12.dp, y = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = if (currentToken != null) "Casting" else "Not Paired",
@@ -212,7 +213,7 @@ fun PairingScreen(onPairCodeEntered: (String) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f),
+            .fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -367,7 +368,7 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f),
+            .fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -448,7 +449,7 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0x1AFFFFFF))
-                            .padding(horizontal = 10.dp, y = 4.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = label,

@@ -12,7 +12,7 @@ import java.io.IOException
 
 object MarucastApiClient {
     private const val TAG = "MarucastApiClient"
-    private const val BASE_URL = "https://maruchansquigle.vercel.app/api/auth"
+    private const val BASE_URL = "https://maru-website.onrender.com/api/auth"
     private val client = OkHttpClient()
     private val gson = Gson()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
@@ -28,7 +28,7 @@ object MarucastApiClient {
     fun lookupPin(pin: String, callback: Callback<String>) {
         val requestBody = gson.toJson(LookupPinRequest(pin)).toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
-            .url("$BASE_URL/marucast/receiver-lookup-pin")
+            .url("$BASE_URL?route=marucast/receiver-lookup-pin")
             .post(requestBody)
             .build()
 
@@ -78,7 +78,7 @@ object MarucastApiClient {
     fun completeReceiver(payload: CompleteRequest, callback: Callback<Boolean>) {
         val requestBody = gson.toJson(payload).toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
-            .url("$BASE_URL/marucast/receiver-complete")
+            .url("$BASE_URL?route=marucast/receiver-complete")
             .post(requestBody)
             .build()
 
@@ -117,8 +117,9 @@ object MarucastApiClient {
     )
 
     fun checkStatus(token: String, callback: Callback<StatusResponse>) {
+        val encodedToken = java.net.URLEncoder.encode(token, "UTF-8")
         val request = Request.Builder()
-            .url("$BASE_URL/marucast/receiver-status?token=${HttpUrl.Builder().percentDecode(token, 0, token.length, true)}")
+            .url("$BASE_URL?route=marucast/receiver-status&token=$encodedToken")
             .get()
             .build()
 
@@ -149,7 +150,7 @@ object MarucastApiClient {
     fun pollCommand(token: String, lastNonce: Int, callback: Callback<CommandResponse>) {
         val requestBody = gson.toJson(CommandRequest(token, lastNonce)).toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
-            .url("$BASE_URL/marucast/receiver-command")
+            .url("$BASE_URL?route=marucast/receiver-command")
             .post(requestBody)
             .build()
 
@@ -191,7 +192,7 @@ object MarucastApiClient {
     fun sendPresence(payload: PresenceRequest, callback: Callback<Boolean>) {
         val requestBody = gson.toJson(payload).toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
-            .url("$BASE_URL/marucast/receiver-presence")
+            .url("$BASE_URL?route=marucast/receiver-presence")
             .post(requestBody)
             .build()
 
