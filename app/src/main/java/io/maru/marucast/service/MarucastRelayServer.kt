@@ -77,8 +77,15 @@ class MarucastRelayServer(private val port: Int = 48543) {
                 return
             }
 
+            val method = extractMethod(requestHeader)
             val path = extractPath(requestHeader)
-            Log.d(TAG, "Request path: $path")
+            Log.d(TAG, "Request: $method $path")
+
+            if (method == "OPTIONS") {
+                handleOptionsRequest(output)
+                socket.close()
+                return
+            }
 
             if (path == "/stream") {
                 handleStreamRequest(output)
@@ -94,6 +101,18 @@ class MarucastRelayServer(private val port: Int = 48543) {
         }
     }
 
+    private fun handleOptionsRequest(out: OutputStream) {
+        val response = "HTTP/1.1 204 No Content\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Access-Control-Allow-Methods: GET, OPTIONS\r\n" +
+                "Access-Control-Allow-Headers: *\r\n" +
+                "Connection: close\r\n\r\n"
+        try {
+            out.write(response.toByteArray())
+            out.flush()
+        } catch (e: Exception) {}
+    }
+
     private fun handleStreamRequest(out: OutputStream) {
         val sampleRate = 44100
         val channels = 2
@@ -102,6 +121,7 @@ class MarucastRelayServer(private val port: Int = 48543) {
         val response = "HTTP/1.1 200 OK\r\n" +
                 "Content-Type: audio/x-wav\r\n" +
                 "Connection: close\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
                 "Cache-Control: no-cache, no-store, must-revalidate\r\n" +
                 "Pragma: no-cache\r\n" +
                 "Expires: 0\r\n\r\n"
@@ -131,7 +151,8 @@ class MarucastRelayServer(private val port: Int = 48543) {
                 val response = "HTTP/1.1 200 OK\r\n" +
                         "Content-Type: image/jpeg\r\n" +
                         "Content-Length: ${bytes.size}\r\n" +
-                        "Connection: close\r\n\r\n"
+                        "Connection: close\r\n" +
+                        "Access-Control-Allow-Origin: *\r\n\r\n"
                 out.write(response.toByteArray())
                 out.write(bytes)
             } else {
@@ -148,12 +169,22 @@ class MarucastRelayServer(private val port: Int = 48543) {
     private fun sendNotFound(out: OutputStream) {
         val response = "HTTP/1.1 404 Not Found\r\n" +
                 "Content-Length: 9\r\n" +
-                "Connection: close\r\n\r\n" +
+                "Connection: close\r\n" +
+                "Access-Control-Allow-Origin: *\r\n\r\n" +
                 "Not Found"
         try {
             out.write(response.toByteArray())
             out.flush()
         } catch (e: Exception) {}
+    }
+
+    private fun extractMethod(request: String): String {
+        val firstLine = request.substringBefore("\r\n")
+        val parts = firstLine.split(" ")
+        if (parts.isNotEmpty()) {
+            return parts[0].uppercase()
+        }
+        return "GET"
     }
 
     private fun readRequestHeader(input: InputStream): String? {
