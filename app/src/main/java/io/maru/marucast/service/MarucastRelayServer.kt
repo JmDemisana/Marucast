@@ -7,6 +7,7 @@ import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import com.google.gson.Gson
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
@@ -14,6 +15,7 @@ import java.util.concurrent.Executors
 
 class MarucastRelayServer(private val port: Int = 48543) {
     private val TAG = "MarucastRelayServer"
+    private val gson = Gson()
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private val executor = Executors.newCachedThreadPool()
@@ -91,6 +93,9 @@ class MarucastRelayServer(private val port: Int = 48543) {
                 handleStreamRequest(output)
             } else if (path == "/artwork.jpg") {
                 handleArtworkRequest(output)
+            } else if (path == "/status") {
+                handleStatusRequest(socket, output)
+                socket.close()
             } else {
                 sendNotFound(output)
                 socket.close()
@@ -111,6 +116,51 @@ class MarucastRelayServer(private val port: Int = 48543) {
             out.write(response.toByteArray())
             out.flush()
         } catch (e: Exception) {}
+    }
+
+    private fun handleStatusRequest(socket: Socket, out: OutputStream) {
+        val ip = socket.localAddress?.hostAddress ?: "127.0.0.1"
+        val statusMap = mapOf(
+            "activeLoopbackMicClients" to 0,
+            "activeNetworkMicClients" to streamingClients.size,
+            "artworkUrl" to "http://$ip:48543/artwork.jpg",
+            "captureActive" to isRunning,
+            "channelCount" to 2,
+            "deviceName" to android.os.Build.MODEL,
+            "karaokeEnabled" to false,
+            "karaokeDelayMs" to 0,
+            "lastError" to null,
+            "liveStreamUrl" to "http://$ip:48543/stream",
+            "mediaAccessEnabled" to true,
+            "mediaAppLabel" to (MediaSessionState.appLabel ?: "Android Player"),
+            "mediaArtist" to (MediaSessionState.artist ?: "Unknown Artist"),
+            "mediaDurationMs" to MediaSessionState.durationMs,
+            "mediaPlaying" to MediaSessionState.isPlaying,
+            "mediaPlaybackSpeed" to (if (MediaSessionState.isPlaying) 1.0 else 0.0),
+            "mediaPositionCapturedAtMs" to System.currentTimeMillis(),
+            "mediaPositionMs" to MediaSessionState.positionMs,
+            "mediaTitle" to (MediaSessionState.title ?: "Unknown Track"),
+            "serviceName" to "marucast-android",
+            "sampleRate" to 44100,
+            "vocalProcessingKind" to "none",
+            "vocalStemModelReady" to false
+        )
+        val json = gson.toJson(statusMap)
+        val responseBytes = json.toByteArray(Charsets.UTF_8)
+        
+        val response = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: application/json; charset=utf-8\r\n" +
+                "Content-Length: ${responseBytes.size}\r\n" +
+                "Connection: close\r\n" +
+                "Access-Control-Allow-Origin: *\r\n\r\n"
+                
+        try {
+            out.write(response.toByteArray())
+            out.write(responseBytes)
+            out.flush()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send status: ${e.message}")
+        }
     }
 
     private fun handleStreamRequest(out: OutputStream) {
