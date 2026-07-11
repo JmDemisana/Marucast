@@ -21,6 +21,8 @@ object MediaSessionState {
     var artist: String? = null
     var durationMs: Long = 0L
     var positionMs: Long = 0L
+    var lastPositionUpdateTimeMs: Long = 0L
+    var playbackSpeed: Float = 1.0f
     var isPlaying: Boolean = false
     var appLabel: String? = null
     var artworkBitmap: Bitmap? = null
@@ -30,6 +32,15 @@ object MediaSessionState {
 
     fun triggerUpdate() {
         onMetadataChanged?.invoke()
+    }
+
+    fun getEstimatedPosition(): Long {
+        if (!isPlaying || lastPositionUpdateTimeMs <= 0) {
+            return positionMs
+        }
+        val elapsed = android.os.SystemClock.elapsedRealtime() - lastPositionUpdateTimeMs
+        val extrapolated = positionMs + (elapsed * playbackSpeed).toLong()
+        return if (durationMs > 0) extrapolated.coerceIn(0, durationMs) else extrapolated
     }
 }
 
@@ -119,9 +130,13 @@ class MarucastNotificationListener : NotificationListenerService() {
         if (state == null) {
             MediaSessionState.isPlaying = false
             MediaSessionState.positionMs = 0L
+            MediaSessionState.lastPositionUpdateTimeMs = 0L
+            MediaSessionState.playbackSpeed = 0f
         } else {
             MediaSessionState.isPlaying = state.state == PlaybackState.STATE_PLAYING
             MediaSessionState.positionMs = state.position
+            MediaSessionState.lastPositionUpdateTimeMs = state.lastPositionUpdateTime
+            MediaSessionState.playbackSpeed = state.playbackSpeed
         }
         MediaSessionState.triggerUpdate()
     }

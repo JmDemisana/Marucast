@@ -4,8 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -409,6 +411,50 @@ fun PairingScreen(onPairCodeEntered: (String, onResult: (Boolean, String?) -> Un
 }
 
 @Composable
+fun AudioVisualizer(isPlaying: Boolean) {
+    Row(
+        modifier = Modifier
+            .height(24.dp)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        val barCount = 7
+        val infiniteTransition = rememberInfiniteTransition(label = "audio_visualizer")
+        
+        for (i in 0 until barCount) {
+            val duration = remember { (450..850).random() }
+            val heightFactor by if (isPlaying) {
+                infiniteTransition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1.0f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(duration, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "bar_height_$i"
+                )
+            } else {
+                remember { mutableStateOf(0.15f) }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight(heightFactor)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(AccentPurple, AccentBlue)
+                        )
+                    )
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
 fun NowPlayingScreen(onDisconnect: () -> Unit) {
     var metadataState by remember { mutableStateOf(MediaSessionState) }
     var title by remember { mutableStateOf(MediaSessionState.title) }
@@ -416,6 +462,7 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
     var appLabel by remember { mutableStateOf(MediaSessionState.appLabel) }
     var isPlaying by remember { mutableStateOf(MediaSessionState.isPlaying) }
     var artworkBitmap by remember { mutableStateOf(MediaSessionState.artworkBitmap) }
+    var karaokeEnabled by remember { mutableStateOf(MarucastForegroundService.isKaraokeMode) }
 
     LaunchedEffect(Unit) {
         MediaSessionState.onMetadataChanged = {
@@ -426,6 +473,32 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
             artworkBitmap = MediaSessionState.artworkBitmap
         }
     }
+
+    // Infinite transitions for rotating glowing ring and pulsing effects
+    val infiniteTransition = rememberInfiniteTransition(label = "now_playing_animations")
+    
+    val glowScale by infiniteTransition.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "aurora_pulse"
+    )
+    
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(12000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "aurora_rotate"
+    )
+
+    val currentGlowScale = if (isPlaying) glowScale else 1.0f
+    val currentRotation = if (isPlaying) rotationAngle else 0.0f
 
     Column(
         modifier = Modifier
@@ -438,101 +511,298 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkNavyAlt.copy(alpha = 0.8f)),
+                .padding(vertical = 12.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkNavyAlt.copy(alpha = 0.85f)),
             shape = RoundedCornerShape(32.dp),
             border = BorderStroke(1.dp, Color(0x1CFFFFFF))
         ) {
             Column(
-                modifier = Modifier.padding(28.dp),
+                modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Album Art
+                // Animated Glowing Backdrop under Album Art
                 Box(
                     modifier = Modifier
-                        .size(200.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0x0DFFFFFF)),
+                        .size(210.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (artworkBitmap != null) {
-                        Image(
-                            bitmap = artworkBitmap!!.asImageBitmap(),
-                            contentDescription = "Album Artwork",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        // Default vinyl disc placeholder
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.sweepGradient(
-                                        listOf(AccentBlue, AccentPurple, AccentBlue)
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    // Pulsing Neon Aura behind the art
+                    Box(
+                        modifier = Modifier
+                            .size(190.dp)
+                            .scale(currentGlowScale)
+                            .rotate(currentRotation)
+                            .blur(20.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.sweepGradient(
+                                    colors = listOf(AccentBlue, AccentPurple, AccentBlue)
+                                )
+                            )
+                    )
+                    
+                    // Album Art Box
+                    Box(
+                        modifier = Modifier
+                            .size(185.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(DeepBackground)
+                            .border(1.5.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (artworkBitmap != null) {
+                            Image(
+                                bitmap = artworkBitmap!!.asImageBitmap(),
+                                contentDescription = "Album Artwork",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            // Spinning vinyl record visual
                             Box(
                                 modifier = Modifier
-                                    .size(30.dp)
+                                    .size(120.dp)
+                                    .rotate(currentRotation)
                                     .clip(CircleShape)
-                                    .background(DeepBackground)
-                            )
+                                    .background(Color(0xFF0F111A))
+                                    .border(3.dp, Color(0x1CFFFFFF), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // Groove rings
+                                Box(
+                                    modifier = Modifier
+                                        .size(90.dp)
+                                        .border(1.dp, Color(0x0DFFFFFF), CircleShape)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .border(1.dp, Color(0x12FFFFFF), CircleShape)
+                                )
+                                // Center sticker label
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(
+                                                colors = listOf(AccentBlue, AccentPurple)
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(DeepBackground)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Track title & artist
-                Text(
-                    text = title ?: "Waiting for music...",
-                    color = TextLight,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = artist ?: "Play a song on your phone",
-                    color = TextMuted,
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1
-                )
+                // Realtime Audio Equalizer Visualizer
+                AudioVisualizer(isPlaying = isPlaying)
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Track title & artist with Slide/Fade Transition on Track Changes
+                AnimatedContent(
+                    targetState = title to artist,
+                    transitionSpec = {
+                        slideInHorizontally { width -> width } + fadeIn() togetherWith
+                                slideOutHorizontally { width -> -width } + fadeOut()
+                    },
+                    label = "track_details_transition"
+                ) { (currentTitle, currentArtist) ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = currentTitle ?: "Waiting for music...",
+                            color = TextLight,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = currentArtist ?: "Play a song on your phone",
+                            color = TextMuted,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                }
+
+                // Player Source Label
                 appLabel?.let { label ->
                     Spacer(modifier = Modifier.height(14.dp))
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x1AFFFFFF))
+                            .background(Color(0x14A78BFA))
+                            .border(1.dp, AccentPurple.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = label,
                             color = AccentPurple,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Interactive Media Player Controls row
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Previous Button
+                    IconButton(
+                        onClick = {
+                            MediaSessionState.activeController?.transportControls?.skipToPrevious()
+                        },
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x0AFFFFFF))
+                            .border(1.dp, Color(0x14FFFFFF), CircleShape)
+                    ) {
+                        Text("⏮", color = TextLight, fontSize = 20.sp)
+                    }
+
+                    // Play/Pause button
+                    IconButton(
+                        onClick = {
+                            val controller = MediaSessionState.activeController
+                            if (isPlaying) {
+                                controller?.transportControls?.pause()
+                            } else {
+                                controller?.transportControls?.play()
+                            }
+                        },
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(AccentBlue, AccentPurple)
+                                )
+                            )
+                            .border(1.dp, Color(0x3DFFFFFF), CircleShape)
+                    ) {
+                        Text(
+                            text = if (isPlaying) "⏸" else "▶",
+                            color = DeepBackground,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.offset(x = if (isPlaying) 0.dp else 2.dp)
+                        )
+                    }
+
+                    // Next Button
+                    IconButton(
+                        onClick = {
+                            MediaSessionState.activeController?.transportControls?.skipToNext()
+                        },
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(Color(0x0AFFFFFF))
+                            .border(1.dp, Color(0x14FFFFFF), CircleShape)
+                    ) {
+                        Text("⏭", color = TextLight, fontSize = 20.sp)
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        // Karaoke Mode Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .clickable {
+                    karaokeEnabled = !karaokeEnabled
+                    MarucastForegroundService.isKaraokeMode = karaokeEnabled
+                },
+            colors = CardDefaults.cardColors(
+                containerColor = if (karaokeEnabled) Color(0x29A78BFA) else DarkNavyAlt.copy(alpha = 0.5f)
+            ),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, if (karaokeEnabled) AccentPurple.copy(alpha = 0.5f) else Color(0x14FFFFFF))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "🎤",
+                        fontSize = 24.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Karaoke Mode",
+                            color = TextLight,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Real-time vocal cancellation filter",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+                
+                Switch(
+                    checked = karaokeEnabled,
+                    onCheckedChange = { checked ->
+                        karaokeEnabled = checked
+                        MarucastForegroundService.isKaraokeMode = checked
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = DeepBackground,
+                        checkedTrackColor = AccentPurple,
+                        uncheckedThumbColor = TextMuted,
+                        uncheckedTrackColor = Color(0x1AFFFFFF)
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Disconnect Button
         Button(
             onClick = onDisconnect,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
-                .fillMaxWidth(0.7f)
+                .fillMaxWidth(0.75f)
                 .height(52.dp)
         ) {
             Text("Stop Broadcast", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)

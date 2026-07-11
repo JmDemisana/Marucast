@@ -66,6 +66,7 @@ class MarucastForegroundService : Service() {
             private set
 
         var isMicMode = false
+        var isKaraokeMode = false
     }
 
     override fun onCreate() {
@@ -191,6 +192,9 @@ class MarucastForegroundService : Service() {
                     while (isStreaming) {
                         val read = audioRecord?.read(buffer, 0, buffer.size) ?: -1
                         if (read > 0) {
+                            if (isKaraokeMode) {
+                                applyKaraokeFilter(buffer, read)
+                            }
                             relayServer?.broadcastAudio(buffer, read)
                         }
                     }
@@ -203,6 +207,24 @@ class MarucastForegroundService : Service() {
                 Log.e(TAG, "Exception in audio recording thread: ${e.message}")
             }
         }.apply { start() }
+    }
+
+    private fun applyKaraokeFilter(buffer: ByteArray, bytesRead: Int) {
+        for (i in 0 until (bytesRead - 3) step 4) {
+            val left = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
+            val right = ((buffer[i + 3].toInt() and 0xFF) shl 8) or (buffer[i + 2].toInt() and 0xFF)
+            
+            val leftSigned = if (left > 32767) left - 65536 else left
+            val rightSigned = if (right > 32767) right - 65536 else right
+            
+            val diff = (leftSigned - rightSigned) / 2
+            val result = diff.coerceIn(-32768, 32767)
+            
+            buffer[i] = (result and 0xFF).toByte()
+            buffer[i + 1] = ((result shr 8) and 0xFF).toByte()
+            buffer[i + 2] = (result and 0xFF).toByte()
+            buffer[i + 3] = ((result shr 8) and 0xFF).toByte()
+        }
     }
 
     private fun completeHandoff(streamUrl: String) {
@@ -220,7 +242,7 @@ class MarucastForegroundService : Service() {
             relayMode = "lan",
             sampleRate = 44100,
             channelCount = 2,
-            vocalProcessingKind = "none",
+            vocalProcessingKind = if (isKaraokeMode) "karaoke" else "none",
             vocalStemModelReady = false
         )
 
