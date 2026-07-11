@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
@@ -28,8 +29,10 @@ class MarucastForegroundService : Service() {
     private val TAG = "MarucastService"
     private var relayServer: MarucastRelayServer? = null
     private var audioRecord: AudioRecord? = null
+    private var mediaProjection: MediaProjection? = null
     private var isStreaming = false
     private var audioThread: Thread? = null
+    private var projectionIntentData: Intent? = null
     
     private var token: String? = null
     private var ipAddress: String? = null
@@ -54,6 +57,7 @@ class MarucastForegroundService : Service() {
         const val ACTION_START = "io.maru.marucast.action.START"
         const val ACTION_STOP = "io.maru.marucast.action.STOP"
         const val EXTRA_TOKEN = "extra_token"
+        const val EXTRA_PROJECTION_DATA = "extra_projection_data"
         
         var isRunning = false
             private set
@@ -61,7 +65,7 @@ class MarucastForegroundService : Service() {
         var currentToken: String? = null
             private set
 
-        var isMicMode = true
+        var isMicMode = false
     }
 
     override fun onCreate() {
@@ -73,8 +77,14 @@ class MarucastForegroundService : Service() {
         val action = intent?.action
         if (action == ACTION_START) {
             val token = intent.getStringExtra(EXTRA_TOKEN)
+            val projData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(EXTRA_PROJECTION_DATA, Intent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(EXTRA_PROJECTION_DATA)
+            }
             if (token != null) {
-                startStreamingService(token)
+                startStreamingService(token, projData)
             } else {
                 stopSelf()
             }
@@ -85,9 +95,10 @@ class MarucastForegroundService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun startStreamingService(token: String) {
+    private fun startStreamingService(token: String, projectionData: Intent?) {
         this.token = token
         currentToken = token
+        this.projectionIntentData = projectionData
         
         ipAddress = getLocalIpAddress(this) ?: "127.0.0.1"
         val streamUrl = "http://$ipAddress:48543/stream"
@@ -97,20 +108,20 @@ class MarucastForegroundService : Service() {
         // 1. Start HTTP Server
         relayServer = MarucastRelayServer(48543).apply { start() }
         
-        // 2. Start Audio Capture
-        startAudioCapture()
-
-        // 3. Promote to Foreground
+        // 2. Promote to Foreground (MUST happen before MediaProjection creation!)
         val notification = createNotification("Starting Marucast stream...")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                101, 
-                notification, 
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+            var serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (projectionData != null) {
+                serviceType = serviceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            }
+            startForeground(101, notification, serviceType)
         } else {
             startForeground(101, notification)
         }
+        
+        // 3. Start Audio Capture
+        startAudioCapture()
 
         // 4. Report details to API Complete endpoint
         completeHandoff(streamUrl)
@@ -134,15 +145,40 @@ class MarucastForegroundService : Service() {
             val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 2
 
             try {
-                // For simplicity, we capture from Microphone by default (ideal for Vocal / Karaoke setup)
-                // This does not require complex MediaProjection setup that would disrupt background tasking
-                audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    sampleRate,
-                    channelConfig,
-                    audioFormat,
-                    bufferSize
-                )
+                if (!isMicMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && projectionIntentData != null) {
+                    Log.i(TAG, "Configuring system audio capture via MediaProjection")
+                    val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                    val proj = mediaProjectionManager.getMediaProjection(android.app.Activity.RESULT_OK, projectionIntentData!!)
+                    if (proj != null) {
+                        mediaProjection = proj
+                        val config = AudioPlaybackCaptureConfiguration.Builder(proj)
+                            .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                            .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                            .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                            .build()
+                        val audioFormatObj = AudioFormat.Builder()
+                            .setEncoding(audioFormat)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(channelConfig)
+                            .build()
+                        audioRecord = AudioRecord.Builder()
+                            .setAudioFormat(audioFormatObj)
+                            .setBufferSizeInBytes(bufferSize)
+                            .setAudioPlaybackCaptureConfig(config)
+                            .build()
+                    }
+                }
+
+                if (audioRecord == null) {
+                    Log.i(TAG, "Configuring microphone capture")
+                    audioRecord = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        sampleRate,
+                        channelConfig,
+                        audioFormat,
+                        bufferSize
+                    )
+                }
 
                 if (audioRecord?.state == AudioRecord.STATE_INITIALIZED) {
                     audioRecord?.startRecording()
@@ -307,6 +343,12 @@ class MarucastForegroundService : Service() {
             audioRecord?.release()
         } catch (e: Exception) {}
         audioRecord = null
+
+        try {
+            mediaProjection?.stop()
+        } catch (e: Exception) {}
+        mediaProjection = null
+        projectionIntentData = null
         
         MediaSessionState.onMetadataChanged = null
         currentToken = null

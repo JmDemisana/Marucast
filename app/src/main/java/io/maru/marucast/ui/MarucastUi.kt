@@ -209,6 +209,7 @@ fun PairingScreen(onPairCodeEntered: (String, onResult: (Boolean, String?) -> Un
     var pinText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var audioSourceIsMic by remember { mutableStateOf(MarucastForegroundService.isMicMode) }
 
     Column(
         modifier = Modifier
@@ -236,8 +237,45 @@ fun PairingScreen(onPairCodeEntered: (String, onResult: (Boolean, String?) -> Un
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Audio Source Selector
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkNavyAlt)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val modes = listOf(
+                    false to "System Music",
+                    true to "Microphone"
+                )
+                modes.forEach { (isMic, label) ->
+                    val selected = audioSourceIsMic == isMic
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) AccentBlue else Color.Transparent)
+                            .clickable {
+                                audioSourceIsMic = isMic
+                                MarucastForegroundService.isMicMode = isMic
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (selected) DeepBackground else TextLight,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Pin view
             Row(

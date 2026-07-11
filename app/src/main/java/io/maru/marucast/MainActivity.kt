@@ -12,6 +12,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import android.app.Activity
+import android.content.Context
+import android.media.projection.MediaProjectionManager
 import androidx.core.content.ContextCompat
 import io.maru.marucast.network.MarucastApiClient
 import io.maru.marucast.service.MarucastForegroundService
@@ -19,6 +22,25 @@ import io.maru.marucast.ui.DeepBackground
 import io.maru.marucast.ui.MarucastAppContent
 
 class MainActivity : ComponentActivity() {
+
+    private var pendingToken: String? = null
+
+    private val screenCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val token = pendingToken
+        if (result.resultCode == Activity.RESULT_OK && result.data != null && token != null) {
+            val serviceIntent = Intent(this, MarucastForegroundService::class.java).apply {
+                action = MarucastForegroundService.ACTION_START
+                putExtra(MarucastForegroundService.EXTRA_TOKEN, token)
+                putExtra(MarucastForegroundService.EXTRA_PROJECTION_DATA, result.data)
+            }
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } else {
+            Toast.makeText(this, "Screen capture permission is required for internal audio casting.", Toast.LENGTH_LONG).show()
+        }
+        pendingToken = null
+    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -47,6 +69,26 @@ class MainActivity : ComponentActivity() {
                         stopStreamingService()
                     }
                 )
+            }
+        }
+
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val action = intent?.action
+        val data = intent?.data
+        if (Intent.ACTION_VIEW == action && data != null && "marucast" == data.scheme) {
+            val token = data.getQueryParameter("token")
+            if (token != null) {
+                Toast.makeText(this, "Linking from browser...", Toast.LENGTH_SHORT).show()
+                startStreamingService(token)
             }
         }
     }
@@ -86,11 +128,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startStreamingService(token: String) {
-        val serviceIntent = Intent(this, MarucastForegroundService::class.java).apply {
-            action = MarucastForegroundService.ACTION_START
-            putExtra(MarucastForegroundService.EXTRA_TOKEN, token)
+        if (!MarucastForegroundService.isMicMode) {
+            pendingToken = token
+            val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+        } else {
+            val serviceIntent = Intent(this, MarucastForegroundService::class.java).apply {
+                action = MarucastForegroundService.ACTION_START
+                putExtra(MarucastForegroundService.EXTRA_TOKEN, token)
+            }
+            ContextCompat.startForegroundService(this, serviceIntent)
         }
-        ContextCompat.startForegroundService(this, serviceIntent)
     }
 
     private fun stopStreamingService() {
