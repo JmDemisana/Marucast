@@ -6,6 +6,8 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -459,6 +461,7 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("marucast_prefs", Context.MODE_PRIVATE) }
     var delayMode by remember { mutableStateOf(prefs.getString("delay_mode", "lossless") ?: "lossless") }
+    var lyricsDelayOffset by remember { mutableStateOf(prefs.getLong("lyrics_delay_offset", 0L)) }
     var metadataState by remember { mutableStateOf(MediaSessionState) }
     var title by remember { mutableStateOf(MediaSessionState.title) }
     var artist by remember { mutableStateOf(MediaSessionState.artist) }
@@ -466,6 +469,10 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
     var isPlaying by remember { mutableStateOf(MediaSessionState.isPlaying) }
     var artworkBitmap by remember { mutableStateOf(MediaSessionState.artworkBitmap) }
     var karaokeEnabled by remember { mutableStateOf(MarucastForegroundService.isKaraokeMode) }
+    
+    LaunchedEffect(lyricsDelayOffset) {
+        MarucastForegroundService.lyricsDelayOffsetMs = lyricsDelayOffset
+    }
 
     LaunchedEffect(Unit) {
         MediaSessionState.onMetadataChanged = {
@@ -506,9 +513,9 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(),
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         // Frosted Now Playing card
         Card(
@@ -799,7 +806,7 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Delay Management Card
+        // Lyrics Sync Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -811,7 +818,107 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "⏱️",
+                        fontSize = 22.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Lyrics Sync",
+                            color = TextLight,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Nudge lyrics backward or forward in real-time",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Adjustment Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Minus Button
+                    Button(
+                        onClick = {
+                            lyricsDelayOffset = (lyricsDelayOffset - 250).coerceIn(-10000L, 10000L)
+                            prefs.edit().putLong("lyrics_delay_offset", lyricsDelayOffset).apply()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x14FFFFFF)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(12.dp))
+                    ) {
+                        Text("-0.25s", color = TextLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Display Value
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val offsetSecs = lyricsDelayOffset / 1000.0
+                        val text = if (lyricsDelayOffset == 0L) "Synced" else "${if (offsetSecs > 0) "+" else ""}${String.format("%.2fs", offsetSecs)}"
+                        Text(
+                            text = text,
+                            color = if (lyricsDelayOffset == 0L) AccentBlue else AccentPurple,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+
+                    // Plus Button
+                    Button(
+                        onClick = {
+                            lyricsDelayOffset = (lyricsDelayOffset + 250).coerceIn(-10000L, 10000L)
+                            prefs.edit().putLong("lyrics_delay_offset", lyricsDelayOffset).apply()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x14FFFFFF)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(12.dp))
+                    ) {
+                        Text("+0.25s", color = TextLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Delay Management Card (Segmented Control Refactoring)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkNavyAlt.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Color(0x14FFFFFF))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -830,41 +937,54 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Optimize audio stream for speed or quality",
+                            text = "Optimize streaming quality dynamically",
                             color = TextMuted,
                             fontSize = 11.sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Options Rows
+                // Premium Segmented Pill Selector Row
                 val delayOptions = listOf(
                     "lossless" to "Lossless",
                     "automatic" to "Automatic",
                     "less_delay" to "Less Delay"
                 )
-                val descriptions = mapOf(
-                    "lossless" to "Delay does not matter. Best quality.",
-                    "automatic" to "Decrease quality dynamically if delay spikes.",
-                    "less_delay" to "Decrease quality to match source instantly."
-                )
 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0x0AFFFFFF))
+                        .border(1.dp, Color(0x0DFFFFFF), RoundedCornerShape(16.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     delayOptions.forEach { (mode, label) ->
                         val selected = delayMode == mode
-                        Row(
+                        val backgroundAlpha by animateFloatAsState(
+                            targetValue = if (selected) 1f else 0f,
+                            animationSpec = tween(250, easing = LinearOutSlowInEasing),
+                            label = "segmented_tab_bg_$mode"
+                        )
+
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) Color(0x147EB8F7) else Color.Transparent)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            AccentBlue.copy(alpha = backgroundAlpha * 0.15f),
+                                            AccentPurple.copy(alpha = backgroundAlpha * 0.15f)
+                                        )
+                                    )
+                                )
                                 .border(
                                     1.dp,
-                                    if (selected) AccentBlue.copy(alpha = 0.4f) else Color.Transparent,
+                                    if (selected) AccentBlue.copy(alpha = 0.25f) else Color.Transparent,
                                     RoundedCornerShape(12.dp)
                                 )
                                 .clickable {
@@ -872,54 +992,75 @@ fun NowPlayingScreen(onDisconnect: () -> Unit) {
                                     MarucastForegroundService.delayManagementMode = mode
                                     prefs.edit().putString("delay_mode", mode).apply()
                                 }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = {
-                                    delayMode = mode
-                                    MarucastForegroundService.delayManagementMode = mode
-                                    prefs.edit().putString("delay_mode", mode).apply()
-                                },
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = AccentBlue,
-                                    unselectedColor = TextMuted
-                                )
+                            Text(
+                                text = label,
+                                color = if (selected) AccentBlue else TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = label,
-                                    color = if (selected) TextLight else TextMuted,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = descriptions[mode] ?: "",
-                                    color = TextMuted.copy(alpha = 0.8f),
-                                    fontSize = 11.sp
-                                )
-                            }
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dynamic detailed description with subtle typography
+                Text(
+                    text = when (delayMode) {
+                        "lossless" -> "• Lossless: Prioritizes best sound fidelity. Stream remains uncompressed."
+                        "automatic" -> "• Automatic: Monitors network delay and reduces sample rate dynamically."
+                        else -> "• Less Delay: Optimizes for lowest latency. Compresses stream for speed."
+                    },
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Disconnect Button
+        // Professional Gradient Outline Disconnect Button
         Button(
             onClick = onDisconnect,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            contentPadding = PaddingValues(),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth(0.75f)
-                .height(52.dp)
+                .height(54.dp)
+                .border(
+                    BorderStroke(1.dp, Color(0x33FF5252)),
+                    RoundedCornerShape(16.dp)
+                )
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFFE53935).copy(alpha = 0.15f),
+                            Color(0xFFD81B60).copy(alpha = 0.15f)
+                        )
+                    )
+                )
         ) {
-            Text("Stop Broadcast", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Stop Broadcast",
+                    color = Color(0xFFFF5252),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    letterSpacing = 1.sp
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 

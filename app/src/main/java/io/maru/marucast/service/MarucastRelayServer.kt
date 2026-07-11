@@ -143,7 +143,7 @@ class MarucastRelayServer(private val port: Int = 48543) {
             "mediaPlaying" to MediaSessionState.isPlaying,
             "mediaPlaybackSpeed" to (if (MediaSessionState.isPlaying) 1.0 else 0.0),
             "mediaPositionCapturedAtMs" to System.currentTimeMillis(),
-            "mediaPositionMs" to MediaSessionState.getEstimatedPosition(),
+            "mediaPositionMs" to (MediaSessionState.getEstimatedPosition() + MarucastForegroundService.lyricsDelayOffsetMs),
             "mediaTitle" to (MediaSessionState.title ?: "Unknown Track"),
             "serviceName" to "marucast-android",
             "sampleRate" to 44100,

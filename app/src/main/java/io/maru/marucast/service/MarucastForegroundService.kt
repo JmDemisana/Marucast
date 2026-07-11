@@ -68,6 +68,7 @@ class MarucastForegroundService : Service() {
         var isMicMode = false
         var isKaraokeMode = false
         var delayManagementMode = "lossless" // "lossless", "automatic", "less_delay"
+        var lyricsDelayOffsetMs = 0L
     }
 
     override fun onCreate() {
@@ -75,6 +76,7 @@ class MarucastForegroundService : Service() {
         isRunning = true
         val prefs = getSharedPreferences("marucast_prefs", Context.MODE_PRIVATE)
         delayManagementMode = prefs.getString("delay_mode", "lossless") ?: "lossless"
+        lyricsDelayOffsetMs = prefs.getLong("lyrics_delay_offset", 0L)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -212,6 +214,7 @@ class MarucastForegroundService : Service() {
         }.apply { start() }
     }
 
+    private var lastFilterSample = 0
     private fun applyKaraokeFilter(buffer: ByteArray, bytesRead: Int) {
         for (i in 0 until (bytesRead - 3) step 4) {
             val left = ((buffer[i + 1].toInt() and 0xFF) shl 8) or (buffer[i].toInt() and 0xFF)
@@ -220,8 +223,16 @@ class MarucastForegroundService : Service() {
             val leftSigned = if (left > 32767) left - 65536 else left
             val rightSigned = if (right > 32767) right - 65536 else right
             
-            val diff = (leftSigned - rightSigned) / 2
-            val result = diff.coerceIn(-32768, 32767)
+            // Step 1: Out of Phase Stereo (OOPS) subtraction to cancel center-mixed vocals
+            val diff = leftSigned - rightSigned
+            
+            // Step 2: Adaptive sibilance dampening LPF (smooths out high-frequency vocal reverb/hiss)
+            val alpha = 0.85f
+            val smoothed = (alpha * diff + (1f - alpha) * lastFilterSample).toInt()
+            lastFilterSample = smoothed
+            
+            // Step 3: Boost accompaniment back up slightly to compensate for cancellation loss
+            val result = (smoothed * 1.35f).toInt().coerceIn(-32768, 32767)
             
             buffer[i] = (result and 0xFF).toByte()
             buffer[i + 1] = ((result shr 8) and 0xFF).toByte()
